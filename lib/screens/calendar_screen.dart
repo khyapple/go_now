@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'schedule_edit_screen.dart';
+import 'schedule_detail_screen.dart';
+import '../services/schedule_manager.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -13,23 +14,160 @@ class _CalendarScreenState extends State<CalendarScreen> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  final ScheduleManager _scheduleManager = ScheduleManager();
 
-  // 더미 이벤트 데이터
-  final Map<DateTime, List<Map<String, String>>> _events = {
-    DateTime(2026, 1, 6): [
-      {'title': '회의 참석', 'time': '10:30 AM', 'location': '강남역 근처 회의실'},
-      {'title': '점심 약속', 'time': '12:30 PM', 'location': '강남역 근처 레스토랑'},
-    ],
-    DateTime(2026, 1, 7): [
-      {'title': '병원 진료', 'time': '3:00 PM', 'location': '서울대병원'},
-    ],
-    DateTime(2026, 1, 8): [
-      {'title': '저녁 모임', 'time': '7:00 PM', 'location': '홍대입구역'},
-    ],
-  };
+  @override
+  void initState() {
+    super.initState();
+    _scheduleManager.addListener(_onScheduleChanged);
+  }
+
+  @override
+  void dispose() {
+    _scheduleManager.removeListener(_onScheduleChanged);
+    super.dispose();
+  }
+
+  void _onScheduleChanged() {
+    setState(() {});
+  }
+
+  Color _getColorFromString(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'blue':
+        return Colors.blue;
+      case 'red':
+        return Colors.red;
+      case 'green':
+        return Colors.green;
+      case 'orange':
+        return Colors.orange;
+      case 'purple':
+        return Colors.purple;
+      case 'pink':
+        return Colors.pink;
+      case 'teal':
+        return Colors.teal;
+      case 'amber':
+        return Colors.amber;
+      default:
+        return Colors.blue;
+    }
+  }
 
   List<Map<String, String>> _getEventsForDay(DateTime day) {
-    return _events[DateTime(day.year, day.month, day.day)] ?? [];
+    final dateKey = DateTime(day.year, day.month, day.day);
+    final schedules = _scheduleManager.getSchedulesForDate(dateKey);
+
+    return schedules.map((schedule) {
+      return {
+        'title': schedule.title,
+        'time': schedule.time,
+        'location': schedule.location,
+        'color': schedule.color,
+      };
+    }).toList();
+  }
+
+  Widget _buildCalendarCell(BuildContext context, DateTime day, bool isToday, bool isSelected) {
+    final events = _getEventsForDay(day);
+
+    Color backgroundColor = Colors.white;
+    Color textColor = Colors.black87;
+    Color dayCircleColor = Colors.transparent;
+
+    if (isToday) {
+      dayCircleColor = Colors.blue[600]!;
+      textColor = Colors.white;
+    }
+
+    if (isSelected) {
+      backgroundColor = Colors.blue[50]!;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        border: Border(
+          right: BorderSide(color: Colors.grey[300]!, width: 0.5),
+          bottom: BorderSide(color: Colors.grey[300]!, width: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 날짜 숫자
+          Padding(
+            padding: const EdgeInsets.all(6.0),
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Container(
+                width: isToday ? 28 : null,
+                height: isToday ? 28 : null,
+                decoration: BoxDecoration(
+                  color: dayCircleColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+                      color: isToday ? Colors.white : textColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 스케줄 제목들
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: events.length > 4 ? 4 : events.length,
+                itemBuilder: (context, index) {
+                  final eventColor = _getColorFromString(events[index]['color'] ?? 'blue');
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: eventColor[600],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      events[index]['title']!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          // 더 많은 일정이 있으면 표시
+          if (events.length > 4)
+            Padding(
+              padding: const EdgeInsets.only(left: 6, bottom: 4),
+              child: Text(
+                '+${events.length - 4} more',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   void _showEventModal(BuildContext context, DateTime selectedDay) {
@@ -98,6 +236,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         itemCount: events.length,
                         itemBuilder: (context, index) {
                           final event = events[index];
+                          final eventColor = _getColorFromString(event['color'] ?? 'blue');
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
@@ -111,7 +250,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: Colors.blue[50],
+                                  color: eventColor[50],
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
@@ -121,7 +260,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.blue[600],
+                                      color: eventColor[600],
                                     ),
                                   ),
                                 ),
@@ -142,9 +281,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 Navigator.of(context).pop(); // 모달 닫기
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => ScheduleEditScreen(
+                                    builder: (context) => ScheduleDetailScreen(
                                       schedule: event,
                                       selectedDate: selectedDay,
+                                      scheduleIndex: index,
                                     ),
                                   ),
                                 );
@@ -182,6 +322,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!, width: 0.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -190,7 +331,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
           ],
         ),
-        child: TableCalendar(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: TableCalendar(
           firstDay: DateTime.utc(2024, 1, 1),
           lastDay: DateTime.utc(2030, 12, 31),
           focusedDay: _focusedDay,
@@ -215,20 +358,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
             _focusedDay = focusedDay;
           },
           eventLoader: _getEventsForDay,
+          calendarBuilders: CalendarBuilders(
+            defaultBuilder: (context, day, focusedDay) {
+              return _buildCalendarCell(context, day, false, false);
+            },
+            todayBuilder: (context, day, focusedDay) {
+              return _buildCalendarCell(context, day, true, false);
+            },
+            selectedBuilder: (context, day, focusedDay) {
+              return _buildCalendarCell(context, day, false, true);
+            },
+          ),
           calendarStyle: CalendarStyle(
-            todayDecoration: BoxDecoration(
-              color: Colors.blue[300],
-              shape: BoxShape.circle,
+            cellMargin: EdgeInsets.zero,
+            cellPadding: EdgeInsets.zero,
+            todayDecoration: const BoxDecoration(
+              color: Colors.transparent,
             ),
-            selectedDecoration: BoxDecoration(
-              color: Colors.blue[600],
-              shape: BoxShape.circle,
+            selectedDecoration: const BoxDecoration(
+              color: Colors.transparent,
             ),
             markerDecoration: BoxDecoration(
               color: Colors.blue[600],
               shape: BoxShape.circle,
             ),
-            markersMaxCount: 3,
+            markersMaxCount: 0, // 마커 숨기기
           ),
           headerStyle: HeaderStyle(
             formatButtonVisible: false,
@@ -237,6 +391,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+          ),
+          daysOfWeekHeight: 40,
+          rowHeight: 100, // 날짜 칸 높이 증가
           ),
         ),
       ),

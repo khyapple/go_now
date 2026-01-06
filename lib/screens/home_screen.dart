@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'login_screen.dart';
+import 'schedule_detail_screen.dart';
+import '../services/schedule_manager.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,51 +16,65 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String selectedRoute = '지하철 2호선 → 버스 151';
   bool _isExpanded = false;
+  final ScheduleManager _scheduleManager = ScheduleManager();
 
-  // 더미 데이터 - 실제로는 서버나 로컬 DB에서 가져올 데이터
+  // 더미 데이터 - 캘린더와 동일한 데이터
   final String currentScheduleTitle = '회의 참석';
   final DateTime departureTime = DateTime.now().add(const Duration(minutes: 45));
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleManager.addListener(_onScheduleChanged);
+  }
+
+  @override
+  void dispose() {
+    _scheduleManager.removeListener(_onScheduleChanged);
+    super.dispose();
+  }
+
+  void _onScheduleChanged() {
+    setState(() {});
+  }
+
+  Color _getColorFromString(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'blue':
+        return Colors.blue;
+      case 'red':
+        return Colors.red;
+      case 'green':
+        return Colors.green;
+      case 'orange':
+        return Colors.orange;
+      case 'purple':
+        return Colors.purple;
+      case 'pink':
+        return Colors.pink;
+      case 'teal':
+        return Colors.teal;
+      case 'amber':
+        return Colors.amber;
+      default:
+        return Colors.blue;
+    }
+  }
 
   // 오늘 날짜의 스케줄만 가져오기
   List<Map<String, dynamic>> get todaySchedules {
     final today = DateTime.now();
-    final allSchedules = [
-      {
-        'title': '회의 참석',
-        'location': '강남역 근처 회의실',
-        'time': '10:30 AM',
-        'remainingMinutes': 45,
-        'date': DateTime(today.year, today.month, today.day),
-      },
-      {
-        'title': '점심 약속',
-        'location': '강남역 근처 레스토랑',
-        'time': '12:30 PM',
-        'remainingMinutes': 165,
-        'date': DateTime(today.year, today.month, today.day),
-      },
-      {
-        'title': '저녁 모임',
-        'location': '홍대입구역',
-        'time': '7:00 PM',
-        'remainingMinutes': 555,
-        'date': DateTime(today.year, today.month, today.day),
-      },
-      {
-        'title': '병원 진료',
-        'location': '서울대병원',
-        'time': '3:00 PM',
-        'remainingMinutes': 1440, // 내일
-        'date': DateTime(today.year, today.month, today.day + 1),
-      },
-    ];
+    final todayKey = DateTime(today.year, today.month, today.day);
+    final schedules = _scheduleManager.getSchedulesForDate(todayKey);
 
-    // 오늘 날짜의 스케줄만 필터링
-    return allSchedules.where((schedule) {
-      final scheduleDate = schedule['date'] as DateTime;
-      return scheduleDate.year == today.year &&
-          scheduleDate.month == today.month &&
-          scheduleDate.day == today.day;
+    return schedules.map((schedule) {
+      return {
+        'title': schedule.title,
+        'location': schedule.location,
+        'time': schedule.time,
+        'color': schedule.color,
+        'remainingMinutes': 45, // TODO: 실제 계산 필요
+      };
     }).toList();
   }
 
@@ -131,6 +147,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 오늘 날짜
+              _buildDateHeader(),
+              const SizedBox(height: 16),
+
               // 원형 타이머
               _buildCircularTimer(),
               const SizedBox(height: 24),
@@ -148,6 +168,34 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDateHeader() {
+    final now = DateTime.now();
+    final weekday = ['월', '화', '수', '목', '금', '토', '일'][now.weekday - 1];
+
+    return Center(
+      child: Column(
+        children: [
+          Text(
+            '${now.year}년 ${now.month}월 ${now.day}일',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$weekday요일',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -295,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           children: [
             const Text(
-              '오늘의 스케줄',
+              '다음 스케줄',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -334,26 +382,44 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
         else
-          ...schedules.map((schedule) => _buildScheduleCard(schedule)),
+          ...schedules.asMap().entries.map((entry) => _buildScheduleCard(entry.value, entry.key)),
       ],
     );
   }
 
-  Widget _buildScheduleCard(Map<String, dynamic> schedule) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+  Widget _buildScheduleCard(Map<String, dynamic> schedule, int index) {
+    return GestureDetector(
+      onTap: () {
+        final today = DateTime.now();
+        final todayKey = DateTime(today.year, today.month, today.day);
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ScheduleDetailScreen(
+              schedule: {
+                'title': schedule['title'],
+                'time': schedule['time'],
+                'location': schedule['location'],
+              },
+              selectedDate: todayKey,
+              scheduleIndex: index,
+            ),
           ),
-        ],
-      ),
-      child: Padding(
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
@@ -362,7 +428,7 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: _getColorFromString(schedule['color'] ?? 'blue')[50],
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
@@ -372,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[600],
+                    color: _getColorFromString(schedule['color'] ?? 'blue')[600],
                   ),
                 ),
               ),
@@ -421,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // 화살표 아이콘
             Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
           ],
+        ),
         ),
       ),
     );

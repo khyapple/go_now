@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'calendar_screen.dart';
 
@@ -10,8 +11,37 @@ class MainWrapper extends StatefulWidget {
 }
 
 class _MainWrapperState extends State<MainWrapper> {
-  final PageController _pageController = PageController();
+  PageController _pageController = PageController();
   int _currentPage = 0;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentPage();
+  }
+
+  Future<void> _loadCurrentPage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedPage = prefs.getInt('currentPage') ?? 0;
+
+    if (savedPage != 0 && _pageController.hasClients) {
+      _pageController.jumpToPage(savedPage);
+    } else if (savedPage != 0) {
+      // PageController가 아직 연결되지 않았으면 새로운 controller 생성
+      _pageController = PageController(initialPage: savedPage);
+    }
+
+    setState(() {
+      _currentPage = savedPage;
+      _isInitialized = true;
+    });
+  }
+
+  Future<void> _saveCurrentPage(int page) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('currentPage', page);
+  }
 
   @override
   void dispose() {
@@ -29,6 +59,7 @@ class _MainWrapperState extends State<MainWrapper> {
             setState(() {
               _currentPage = index;
             });
+            _saveCurrentPage(index);
           },
           children: const [
             HomeScreen(),
@@ -62,6 +93,10 @@ class _MainWrapperState extends State<MainWrapper> {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
+        setState(() {
+          _currentPage = index;
+        });
+        _saveCurrentPage(index);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

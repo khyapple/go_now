@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'dart:html' as html;
+import '../services/schedule_manager.dart';
 
 class ScheduleEditScreen extends StatefulWidget {
   final Map<String, String> schedule;
   final DateTime selectedDate;
+  final int scheduleIndex;
 
   const ScheduleEditScreen({
     super.key,
     required this.schedule,
     required this.selectedDate,
+    required this.scheduleIndex,
   });
 
   @override
@@ -18,6 +22,8 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
   late TextEditingController _titleController;
   late TextEditingController _timeController;
   late TextEditingController _locationController;
+
+  final ScheduleManager _scheduleManager = ScheduleManager();
 
   String _selectedTransport = '대중교통';
   int _prepTime = 30; // 준비 시간 (분)
@@ -36,12 +42,107 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
     Colors.amber,
   ];
 
+  String _getColorName(Color color) {
+    if (color == Colors.blue) return 'blue';
+    if (color == Colors.red) return 'red';
+    if (color == Colors.green) return 'green';
+    if (color == Colors.orange) return 'orange';
+    if (color == Colors.purple) return 'purple';
+    if (color == Colors.pink) return 'pink';
+    if (color == Colors.teal) return 'teal';
+    if (color == Colors.amber) return 'amber';
+    return 'blue';
+  }
+
+  Color _getColorFromString(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'blue':
+        return Colors.blue;
+      case 'red':
+        return Colors.red;
+      case 'green':
+        return Colors.green;
+      case 'orange':
+        return Colors.orange;
+      case 'purple':
+        return Colors.purple;
+      case 'pink':
+        return Colors.pink;
+      case 'teal':
+        return Colors.teal;
+      case 'amber':
+        return Colors.amber;
+      default:
+        return Colors.blue;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.schedule['title']);
     _timeController = TextEditingController(text: widget.schedule['time']);
     _locationController = TextEditingController(text: widget.schedule['location'] ?? '');
+
+    // 기존 스케줄 데이터 로드
+    _selectedTransport = widget.schedule['transport'] ?? '대중교통';
+    _prepTime = int.tryParse(widget.schedule['prepTime'] ?? '30') ?? 30;
+    _wrapUpTime = int.tryParse(widget.schedule['wrapUpTime'] ?? '0') ?? 0;
+    _selectedColor = _getColorFromString(widget.schedule['color'] ?? 'blue');
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      initialEntryMode: TimePickerEntryMode.dial, // 다이얼 모드로 시작
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue[600]!,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: Colors.white,
+              hourMinuteTextColor: Colors.blue[600],
+              hourMinuteColor: Colors.blue[50],
+              dayPeriodTextColor: Colors.blue[600],
+              dayPeriodColor: Colors.blue[50],
+              dialHandColor: Colors.blue[600],
+              dialBackgroundColor: Colors.blue[50],
+              dialTextColor: Colors.black87,
+              entryModeIconColor: Colors.blue[600],
+              helpTextStyle: const TextStyle(
+                fontSize: 0, // "Enter time" 텍스트 숨기기
+                height: 0,
+              ),
+              hourMinuteTextStyle: const TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+              ),
+              // 시간 입력 영역 패딩 조정
+              padding: const EdgeInsets.all(24),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedTime != null) {
+      // TimeOfDay를 12시간 형식 문자열로 변환
+      final hour = pickedTime.hourOfPeriod == 0 ? 12 : pickedTime.hourOfPeriod;
+      final minute = pickedTime.minute.toString().padLeft(2, '0');
+      final period = pickedTime.period == DayPeriod.am ? 'AM' : 'PM';
+      final timeString = '$hour:$minute $period';
+
+      setState(() {
+        _timeController.text = timeString;
+      });
+    }
   }
 
   @override
@@ -53,7 +154,118 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
   }
 
   void _saveSchedule() {
-    // TODO: 실제로는 여기서 데이터를 저장해야 합니다
+    // 필수 정보 검증
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('일정 제목을 입력해주세요'),
+            ],
+          ),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (_timeController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('시간을 입력해주세요'),
+            ],
+          ),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (_locationController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('위치를 입력해주세요'),
+            ],
+          ),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // 모든 검증 통과 시 저장
+    print('🟢 저장 버튼 클릭됨!');
+    print('  제목: ${_titleController.text.trim()}');
+    print('  시간: ${_timeController.text.trim()}');
+    print('  위치: ${_locationController.text.trim()}');
+    print('  날짜: ${widget.selectedDate}');
+    print('  인덱스: ${widget.scheduleIndex}');
+
+    final updatedSchedule = Schedule(
+      title: _titleController.text.trim(),
+      time: _timeController.text.trim(),
+      location: _locationController.text.trim(),
+      transport: _selectedTransport,
+      prepTime: _prepTime,
+      wrapUpTime: _wrapUpTime,
+      color: _getColorName(_selectedColor),
+    );
+
+    print('🟢 Schedule 객체 생성됨');
+    print('🟢 ScheduleManager.updateSchedule 호출...');
+
+    // ScheduleManager에 저장
+    _scheduleManager.updateSchedule(
+      widget.selectedDate,
+      widget.scheduleIndex,
+      updatedSchedule,
+    );
+
+    print('🟢 ScheduleManager.updateSchedule 완료');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.white),
+            SizedBox(width: 12),
+            Text('일정이 저장되었습니다'),
+          ],
+        ),
+        backgroundColor: Colors.green[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
     Navigator.of(context).pop();
   }
 
@@ -81,6 +293,27 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
         ],
       ),
     );
+  }
+
+  void _openNaverMap() {
+    final destination = _locationController.text;
+
+    if (destination.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('먼저 목적지를 설정해주세요'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // 네이버 지도 URL 생성 (목적지 검색)
+    final encodedDestination = Uri.encodeComponent(destination);
+    final naverMapUrl = 'https://map.naver.com/v5/search/$encodedDestination';
+
+    // 새 탭에서 네이버 지도 열기
+    html.window.open(naverMapUrl, '_blank');
   }
 
   void _searchAddress() {
@@ -303,11 +536,14 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _timeController,
+              readOnly: true,
+              onTap: _selectTime,
               decoration: InputDecoration(
-                hintText: '예: 10:30 AM',
+                hintText: '시간을 선택하세요',
                 filled: true,
                 fillColor: Colors.white,
                 prefixIcon: const Icon(Icons.access_time),
+                suffixIcon: const Icon(Icons.arrow_drop_down),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey[300]!),
@@ -419,6 +655,25 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
                       });
                     }
                   },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 이동 경로 선택 버튼
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openNaverMap,
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('이동 경로 선택하기'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  foregroundColor: Colors.blue[600],
+                  side: BorderSide(color: Colors.blue[600]!, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),

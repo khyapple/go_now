@@ -19,6 +19,8 @@ class _SignupScreenState extends State<SignupScreen> {
     // 로그인 상태 저장
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isLoggedIn', true);
+    // 회원가입 시 홈 화면으로 리셋
+    await prefs.setInt('currentPage', 0);
 
     // 홈으로 이동
     if (mounted) {

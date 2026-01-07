@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'schedule_edit_screen.dart';
 import '../services/schedule_manager.dart';
 
@@ -37,12 +38,20 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
     setState(() {});
   }
 
-  Map<String, String> get currentSchedule {
+  Map<String, dynamic> get currentSchedule {
     final schedules = _scheduleManager.getSchedulesForDate(widget.selectedDate);
     if (widget.scheduleIndex < schedules.length) {
       return schedules[widget.scheduleIndex].toMap();
     }
     return widget.schedule; // 폴백으로 원본 데이터 반환
+  }
+
+  Schedule? get currentScheduleObject {
+    final schedules = _scheduleManager.getSchedulesForDate(widget.selectedDate);
+    if (widget.scheduleIndex < schedules.length) {
+      return schedules[widget.scheduleIndex];
+    }
+    return null;
   }
 
   @override
@@ -129,18 +138,20 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                   const SizedBox(height: 12),
 
                   // 준비 시간
-                  _buildInfoCard(
+                  _buildTimeItemsCard(
                     icon: Icons.timer_outlined,
                     title: '준비 시간',
-                    content: '${currentSchedule['prepTime'] ?? '30'}분',
+                    totalTime: currentSchedule['prepTime'] ?? '30',
+                    items: currentScheduleObject?.prepTimeItems,
                   ),
                   const SizedBox(height: 12),
 
                   // 마무리 시간
-                  _buildInfoCard(
+                  _buildTimeItemsCard(
                     icon: Icons.more_time_outlined,
                     title: '마무리 시간',
-                    content: '${currentSchedule['wrapUpTime'] ?? '0'}분',
+                    totalTime: currentSchedule['wrapUpTime'] ?? '0',
+                    items: currentScheduleObject?.finishTimeItems,
                   ),
                   const SizedBox(height: 12),
 
@@ -320,6 +331,117 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeItemsCard({
+    required IconData icon,
+    required String title,
+    required String totalTime,
+    List<Map<String, dynamic>>? items,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.blue[600],
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '총 ${totalTime}분',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (items != null && items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            ...items.map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  if (item['emoji'] != null)
+                    Text(
+                      item['emoji'],
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  if (item['emoji'] != null)
+                    const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[600],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${item['minutes']}분',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      item['name'],
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ],
         ],
       ),
     );

@@ -3,15 +3,15 @@ import 'dart:html' as html;
 import '../services/schedule_manager.dart';
 
 class ScheduleEditScreen extends StatefulWidget {
-  final Map<String, String> schedule;
+  final Map<String, String>? schedule;
   final DateTime selectedDate;
-  final int scheduleIndex;
+  final int? scheduleIndex;
 
   const ScheduleEditScreen({
     super.key,
-    required this.schedule,
+    this.schedule,
     required this.selectedDate,
-    required this.scheduleIndex,
+    this.scheduleIndex,
   });
 
   @override
@@ -25,6 +25,7 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
 
   final ScheduleManager _scheduleManager = ScheduleManager();
 
+  late DateTime _selectedDate; // 날짜를 상태로 관리
   String _selectedTransport = '대중교통';
   int _prepTime = 30; // 준비 시간 (분)
   int _wrapUpTime = 0; // 마무리 시간 (분)
@@ -80,15 +81,44 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.schedule['title']);
-    _timeController = TextEditingController(text: widget.schedule['time']);
-    _locationController = TextEditingController(text: widget.schedule['location'] ?? '');
+    _selectedDate = widget.selectedDate; // 날짜 초기화
+    _titleController = TextEditingController(text: widget.schedule?['title'] ?? '');
+    _timeController = TextEditingController(text: widget.schedule?['time'] ?? '');
+    _locationController = TextEditingController(text: widget.schedule?['location'] ?? '');
 
     // 기존 스케줄 데이터 로드
-    _selectedTransport = widget.schedule['transport'] ?? '대중교통';
-    _prepTime = int.tryParse(widget.schedule['prepTime'] ?? '30') ?? 30;
-    _wrapUpTime = int.tryParse(widget.schedule['wrapUpTime'] ?? '0') ?? 0;
-    _selectedColor = _getColorFromString(widget.schedule['color'] ?? 'blue');
+    _selectedTransport = widget.schedule?['transport'] ?? '대중교통';
+    _prepTime = int.tryParse(widget.schedule?['prepTime'] ?? '30') ?? 30;
+    _wrapUpTime = int.tryParse(widget.schedule?['wrapUpTime'] ?? '0') ?? 0;
+    _selectedColor = _getColorFromString(widget.schedule?['color'] ?? 'blue');
+  }
+
+  Future<void> _selectDate() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue[600]!,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDate = pickedDate;
+      });
+    }
   }
 
   Future<void> _selectTime() async {
@@ -219,14 +249,7 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
     }
 
     // 모든 검증 통과 시 저장
-    print('🟢 저장 버튼 클릭됨!');
-    print('  제목: ${_titleController.text.trim()}');
-    print('  시간: ${_timeController.text.trim()}');
-    print('  위치: ${_locationController.text.trim()}');
-    print('  날짜: ${widget.selectedDate}');
-    print('  인덱스: ${widget.scheduleIndex}');
-
-    final updatedSchedule = Schedule(
+    final newSchedule = Schedule(
       title: _titleController.text.trim(),
       time: _timeController.text.trim(),
       location: _locationController.text.trim(),
@@ -236,17 +259,25 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
       color: _getColorName(_selectedColor),
     );
 
-    print('🟢 Schedule 객체 생성됨');
-    print('🟢 ScheduleManager.updateSchedule 호출...');
-
-    // ScheduleManager에 저장
-    _scheduleManager.updateSchedule(
-      widget.selectedDate,
-      widget.scheduleIndex,
-      updatedSchedule,
-    );
-
-    print('🟢 ScheduleManager.updateSchedule 완료');
+    // 새 일정 추가 또는 기존 일정 수정
+    if (widget.scheduleIndex == null) {
+      // 새 일정 추가
+      _scheduleManager.addSchedule(_selectedDate, newSchedule);
+    } else {
+      // 기존 일정 수정 (날짜가 변경된 경우 처리)
+      if (_selectedDate != widget.selectedDate) {
+        // 날짜가 변경된 경우: 기존 일정 삭제 후 새 날짜에 추가
+        _scheduleManager.deleteSchedule(widget.selectedDate, widget.scheduleIndex!);
+        _scheduleManager.addSchedule(_selectedDate, newSchedule);
+      } else {
+        // 날짜가 동일한 경우: 기존 방식으로 수정
+        _scheduleManager.updateSchedule(
+          _selectedDate,
+          widget.scheduleIndex!,
+          newSchedule,
+        );
+      }
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -451,18 +482,19 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
           icon: Icon(Icons.arrow_back, color: Colors.grey[700]),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          '일정 수정',
-          style: TextStyle(
+        title: Text(
+          widget.scheduleIndex == null ? '일정 추가' : '일정 수정',
+          style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: _deleteSchedule,
-          ),
+          if (widget.scheduleIndex != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: _deleteSchedule,
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -470,30 +502,6 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 날짜 표시
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today, color: Colors.blue[600]),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${widget.selectedDate.year}년 ${widget.selectedDate.month}월 ${widget.selectedDate.day}일',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
             // 제목 입력
             const Text(
               '일정 제목',
@@ -520,6 +528,43 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.blue[600]!, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 날짜 선택
+            const Text(
+              '날짜',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _selectDate,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today, color: Colors.blue[600]),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${_selectedDate.year}년 ${_selectedDate.month}월 ${_selectedDate.day}일',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+                  ],
                 ),
               ),
             ),

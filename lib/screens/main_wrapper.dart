@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'calendar_screen.dart';
+import 'settings_screen.dart';
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -51,36 +52,62 @@ class _MainWrapperState extends State<MainWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        PageView(
-          controller: _pageController,
-          onPageChanged: (index) {
-            setState(() {
-              _currentPage = index;
-            });
-            _saveCurrentPage(index);
-          },
-          children: const [
-            HomeScreen(),
-            CalendarScreen(),
-          ],
-        ),
-        // 페이지 인디케이터
-        Positioned(
-          bottom: 32,
-          left: 0,
-          right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildPageIndicator(0, '홈'),
-              const SizedBox(width: 12),
-              _buildPageIndicator(1, '캘린더'),
-            ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          'Go Now',
+          style: TextStyle(
+            color: Colors.blue[600],
+            fontWeight: FontWeight.bold,
           ),
         ),
-      ],
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings_outlined, color: Colors.grey[700]),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+              _saveCurrentPage(index);
+            },
+            children: const [
+              HomeScreen(),
+              CalendarScreen(),
+            ],
+          ),
+          // 페이지 인디케이터
+          Positioned(
+            bottom: 32,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildPageIndicator(0, '홈'),
+                const SizedBox(width: 12),
+                _buildPageIndicator(1, '캘린더'),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

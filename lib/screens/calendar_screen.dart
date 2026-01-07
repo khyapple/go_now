@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'schedule_detail_screen.dart';
+import 'schedule_edit_screen.dart';
 import '../services/schedule_manager.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -32,7 +33,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     setState(() {});
   }
 
-  Color _getColorFromString(String colorName) {
+  MaterialColor _getColorFromString(String colorName) {
     switch (colorName.toLowerCase()) {
       case 'blue':
         return Colors.blue;
@@ -69,11 +70,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }).toList();
   }
 
-  Widget _buildCalendarCell(BuildContext context, DateTime day, bool isToday, bool isSelected) {
+  Widget _buildCalendarCell(BuildContext context, DateTime day, bool isToday, bool isSelected, {bool isOutside = false}) {
     final events = _getEventsForDay(day);
 
     Color backgroundColor = Colors.white;
-    Color textColor = Colors.black87;
+    Color textColor = isOutside ? Colors.grey[400]! : Colors.black87;
     Color dayCircleColor = Colors.transparent;
 
     if (isToday) {
@@ -305,18 +306,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Text(
-          '캘린더',
-          style: TextStyle(
-            color: Colors.blue[600],
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        automaticallyImplyLeading: false,
-      ),
       body: Container(
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -346,8 +335,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
               _selectedDay = selectedDay;
               _focusedDay = focusedDay;
             });
-            // 날짜를 선택하면 모달 표시
-            _showEventModal(context, selectedDay);
+            // 일정이 있으면 모달, 없으면 바로 일정 추가 페이지
+            final events = _getEventsForDay(selectedDay);
+            if (events.isEmpty) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ScheduleEditScreen(
+                    selectedDate: selectedDay,
+                  ),
+                ),
+              );
+            } else {
+              _showEventModal(context, selectedDay);
+            }
           },
           onFormatChanged: (format) {
             setState(() {
@@ -367,6 +367,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             },
             selectedBuilder: (context, day, focusedDay) {
               return _buildCalendarCell(context, day, false, true);
+            },
+            outsideBuilder: (context, day, focusedDay) {
+              return _buildCalendarCell(context, day, false, false, isOutside: true);
             },
           ),
           calendarStyle: CalendarStyle(
@@ -388,12 +391,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             formatButtonVisible: false,
             titleCentered: true,
             titleTextStyle: const TextStyle(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
+              height: 1.3,
             ),
+            titleTextFormatter: (date, locale) {
+              return '${date.year}년\n${date.month}월';
+            },
           ),
           daysOfWeekHeight: 40,
-          rowHeight: 100, // 날짜 칸 높이 증가
+          rowHeight: 140, // 날짜 칸 높이 증가
           ),
         ),
       ),

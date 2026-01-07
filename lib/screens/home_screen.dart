@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
-  Color _getColorFromString(String colorName) {
+  MaterialColor _getColorFromString(String colorName) {
     switch (colorName.toLowerCase()) {
       case 'blue':
         return Colors.blue;
@@ -122,25 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Text(
-          'Go Now',
-          style: TextStyle(
-            color: Colors.blue[600],
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: Colors.grey[700]),
-            onPressed: () {
-              _showLogoutDialog();
-            },
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),

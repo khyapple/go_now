@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
+import 'terms_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,6 +14,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   bool _soundEnabled = true;
+  String _transportMode = '도보';
+  int _prepTime = 10;
+  int _finishTime = 5;
 
   @override
   void initState() {
@@ -24,6 +29,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _notificationsEnabled = prefs.getBool('notifications') ?? true;
       _soundEnabled = prefs.getBool('sound') ?? true;
+      _transportMode = prefs.getString('transportMode') ?? '도보';
+      _prepTime = prefs.getInt('prepTime') ?? 10;
+      _finishTime = prefs.getInt('finishTime') ?? 5;
     });
   }
 
@@ -41,6 +49,150 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _soundEnabled = value;
     });
+  }
+
+  Future<void> _saveTransportMode(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('transportMode', value);
+    setState(() {
+      _transportMode = value;
+    });
+  }
+
+  Future<void> _savePrepTime(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('prepTime', value);
+    setState(() {
+      _prepTime = value;
+    });
+  }
+
+  Future<void> _saveFinishTime(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('finishTime', value);
+    setState(() {
+      _finishTime = value;
+    });
+  }
+
+  void _showTransportModeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('이동수단 선택'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTransportOption('도보', Icons.directions_walk),
+            _buildTransportOption('대중교통', Icons.directions_bus),
+            _buildTransportOption('자동차', Icons.directions_car),
+            _buildTransportOption('자전거', Icons.directions_bike),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransportOption(String mode, IconData icon) {
+    final isSelected = _transportMode == mode;
+    return InkWell(
+      onTap: () {
+        _saveTransportMode(mode);
+        Navigator.of(context).pop();
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue[50] : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? Colors.blue[600]! : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? Colors.blue[600] : Colors.grey[700]),
+            const SizedBox(width: 12),
+            Text(
+              mode,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.blue[600] : Colors.black87,
+              ),
+            ),
+            const Spacer(),
+            if (isSelected)
+              Icon(Icons.check_circle, color: Colors.blue[600]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTimePicker(String title, int currentValue, Function(int) onSave) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$currentValue분',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    if (currentValue > 0) {
+                      final newValue = currentValue - 5;
+                      onSave(newValue);
+                      Navigator.of(context).pop();
+                      _showTimePicker(title, newValue, onSave);
+                    }
+                  },
+                  icon: const Icon(Icons.remove_circle_outline, size: 32),
+                  color: Colors.blue[600],
+                ),
+                const SizedBox(width: 32),
+                IconButton(
+                  onPressed: () {
+                    final newValue = currentValue + 5;
+                    onSave(newValue);
+                    Navigator.of(context).pop();
+                    _showTimePicker(title, newValue, onSave);
+                  },
+                  icon: const Icon(Icons.add_circle_outline, size: 32),
+                  color: Colors.blue[600],
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('확인', style: TextStyle(color: Colors.blue[600])),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showLogoutDialog() {
@@ -160,24 +312,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 16),
 
+          // 앱 설정 섹션
+          _buildSectionHeader('앱 설정'),
+          _buildSettingTile(
+            icon: Icons.directions_outlined,
+            title: '이동수단',
+            subtitle: _transportMode,
+            trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            onTap: _showTransportModeDialog,
+          ),
+          _buildSettingTile(
+            icon: Icons.schedule_outlined,
+            title: '준비시간',
+            subtitle: '$_prepTime분',
+            trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            onTap: () => _showTimePicker('준비시간 설정', _prepTime, _savePrepTime),
+          ),
+          _buildSettingTile(
+            icon: Icons.timer_outlined,
+            title: '마무리시간',
+            subtitle: '$_finishTime분',
+            trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            onTap: () => _showTimePicker('마무리시간 설정', _finishTime, _saveFinishTime),
+          ),
+
+          const SizedBox(height: 16),
+
           // 앱 정보 섹션
           _buildSectionHeader('앱 정보'),
           _buildSettingTile(
             icon: Icons.info_outline,
             title: '버전 정보',
             subtitle: 'v1.0.0',
-            trailing: const SizedBox.shrink(),
+            trailing: TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('최신 버전입니다'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue[600],
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: const Text('업데이트'),
+            ),
           ),
           _buildSettingTile(
             icon: Icons.description_outlined,
             title: '이용약관',
             trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
             onTap: () {
-              // TODO: 이용약관 페이지로 이동
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('이용약관 페이지는 준비 중입니다'),
-                  duration: Duration(seconds: 2),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TermsScreen(),
                 ),
               );
             },
@@ -187,11 +377,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '개인정보 처리방침',
             trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
             onTap: () {
-              // TODO: 개인정보 처리방침 페이지로 이동
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('개인정보 처리방침 페이지는 준비 중입니다'),
-                  duration: Duration(seconds: 2),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const PrivacyPolicyScreen(),
                 ),
               );
             },

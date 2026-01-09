@@ -18,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _transportMode = '도보';
   List<Map<String, dynamic>> _prepTimeItems = [];
   List<Map<String, dynamic>> _finishTimeItems = [];
+  String _currentUserEmail = '';
 
   @override
   void initState() {
@@ -27,19 +28,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    _currentUserEmail = prefs.getString('currentUserEmail') ?? '';
+
     setState(() {
       _notificationsEnabled = prefs.getBool('notifications') ?? true;
       _soundEnabled = prefs.getBool('sound') ?? true;
       _transportMode = prefs.getString('transportMode') ?? '도보';
 
-      final prepTimeJson = prefs.getString('prepTimeItems');
+      // 사용자별 설정 로드
+      final prepTimeJson = prefs.getString('${_currentUserEmail}_prepTimeItems');
       if (prepTimeJson != null) {
         _prepTimeItems = List<Map<String, dynamic>>.from(jsonDecode(prepTimeJson));
+      } else {
+        // 기존 글로벌 데이터가 있으면 마이그레이션
+        final oldPrepTimeJson = prefs.getString('prepTimeItems');
+        if (oldPrepTimeJson != null) {
+          _prepTimeItems = List<Map<String, dynamic>>.from(jsonDecode(oldPrepTimeJson));
+          _savePrepTimeItems(); // 사용자별로 저장
+        }
       }
 
-      final finishTimeJson = prefs.getString('finishTimeItems');
+      final finishTimeJson = prefs.getString('${_currentUserEmail}_finishTimeItems');
       if (finishTimeJson != null) {
         _finishTimeItems = List<Map<String, dynamic>>.from(jsonDecode(finishTimeJson));
+      } else {
+        // 기존 글로벌 데이터가 있으면 마이그레이션
+        final oldFinishTimeJson = prefs.getString('finishTimeItems');
+        if (oldFinishTimeJson != null) {
+          _finishTimeItems = List<Map<String, dynamic>>.from(jsonDecode(oldFinishTimeJson));
+          _saveFinishTimeItems(); // 사용자별로 저장
+        }
       }
     });
   }
@@ -70,12 +88,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _savePrepTimeItems() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('prepTimeItems', jsonEncode(_prepTimeItems));
+    await prefs.setString('${_currentUserEmail}_prepTimeItems', jsonEncode(_prepTimeItems));
+    print('💾 준비시간 저장: $_currentUserEmail - ${_prepTimeItems.length}개 항목');
   }
 
   Future<void> _saveFinishTimeItems() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('finishTimeItems', jsonEncode(_finishTimeItems));
+    await prefs.setString('${_currentUserEmail}_finishTimeItems', jsonEncode(_finishTimeItems));
+    print('💾 마무리시간 저장: $_currentUserEmail - ${_finishTimeItems.length}개 항목');
   }
 
   int _getTotalTime(List<Map<String, dynamic>> items) {

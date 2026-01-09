@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'calendar_screen.dart';
 import 'settings_screen.dart';
+import 'admin_screen.dart';
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -15,11 +16,29 @@ class _MainWrapperState extends State<MainWrapper> {
   PageController _pageController = PageController();
   int _currentPage = 0;
   bool _isInitialized = false;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentPage();
+    _checkAdmin();
+  }
+
+  Future<void> _checkAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isAdmin = prefs.getBool('isAdmin') ?? false;
+
+    if (isAdmin) {
+      // 관리자인 경우 바로 관리자 페이지로 이동
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const AdminScreen()),
+        );
+      });
+    } else {
+      // 일반 사용자는 저장된 페이지 로드
+      _loadCurrentPage();
+    }
   }
 
   Future<void> _loadCurrentPage() async {

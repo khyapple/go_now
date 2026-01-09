@@ -68,13 +68,17 @@ class ScheduleManager extends ChangeNotifier {
   // 날짜별 스케줄 저장
   final Map<DateTime, List<Schedule>> _schedules = {};
   bool _isLoaded = false;
+  String _currentUserEmail = '';
 
   // SharedPreferences에서 일정 로드
   Future<void> _loadSchedules() async {
     if (_isLoaded) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final schedulesJson = prefs.getString('schedules');
+    _currentUserEmail = prefs.getString('currentUserEmail') ?? '';
+
+    // 사용자별 일정 로드
+    final schedulesJson = prefs.getString('${_currentUserEmail}_schedules');
 
     if (schedulesJson != null) {
       try {
@@ -90,55 +94,32 @@ class ScheduleManager extends ChangeNotifier {
               .toList();
           _schedules[date] = schedulesList;
         });
-        print('✅ 일정 로드 완료: ${_schedules.length}개 날짜');
+        print('✅ 일정 로드 완료 ($_currentUserEmail): ${_schedules.length}개 날짜');
       } catch (e) {
         print('❌ 일정 로드 오류: $e');
       }
     } else {
-      // 첫 실행 시 기본 일정 생성
-      _schedules[DateTime(2026, 1, 6)] = [
-        Schedule(
-          title: '회의 참석',
-          time: '10:30 AM',
-          location: '강남역 근처 회의실',
-          transport: '대중교통',
-          prepTime: 30,
-          wrapUpTime: 0,
-          color: 'blue',
-        ),
-        Schedule(
-          title: '점심 약속',
-          time: '12:30 PM',
-          location: '강남역 근처 레스토랑',
-          transport: '도보',
-          prepTime: 15,
-          wrapUpTime: 30,
-          color: 'green',
-        ),
-      ];
-      _schedules[DateTime(2026, 1, 7)] = [
-        Schedule(
-          title: '병원 진료',
-          time: '3:00 PM',
-          location: '서울대병원',
-          transport: '자동차',
-          prepTime: 45,
-          wrapUpTime: 0,
-          color: 'red',
-        ),
-      ];
-      _schedules[DateTime(2026, 1, 8)] = [
-        Schedule(
-          title: '저녁 모임',
-          time: '7:00 PM',
-          location: '홍대입구역',
-          transport: '대중교통',
-          prepTime: 30,
-          wrapUpTime: 60,
-          color: 'purple',
-        ),
-      ];
-      await _saveSchedules();
+      // 기존 글로벌 데이터가 있으면 마이그레이션
+      final oldSchedulesJson = prefs.getString('schedules');
+      if (oldSchedulesJson != null) {
+        try {
+          final Map<String, dynamic> decoded = jsonDecode(oldSchedulesJson);
+          _schedules.clear();
+
+          decoded.forEach((key, value) {
+            final parsedDate = DateTime.parse(key);
+            final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+            final schedulesList = (value as List)
+                .map((item) => Schedule.fromMap(item as Map<String, dynamic>))
+                .toList();
+            _schedules[date] = schedulesList;
+          });
+          print('📦 기존 일정 마이그레이션: ${_schedules.length}개 날짜 → $_currentUserEmail');
+          _saveSchedules(); // 사용자별로 저장
+        } catch (e) {
+          print('❌ 일정 마이그레이션 오류: $e');
+        }
+      }
     }
 
     _isLoaded = true;
@@ -156,8 +137,8 @@ class ScheduleManager extends ChangeNotifier {
     });
 
     final jsonString = jsonEncode(toSave);
-    await prefs.setString('schedules', jsonString);
-    print('💾 일정 저장 완료: ${_schedules.length}개 날짜, ${jsonString.length}자');
+    await prefs.setString('${_currentUserEmail}_schedules', jsonString);
+    print('💾 일정 저장 완료 ($_currentUserEmail): ${_schedules.length}개 날짜, ${jsonString.length}자');
   }
 
   // 특정 날짜의 스케줄 가져오기

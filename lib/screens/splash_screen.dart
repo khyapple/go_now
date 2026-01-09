@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'main_wrapper.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -31,11 +29,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    // 2.5초 후 메인 화면으로 바로 이동 (개발 중)
+    // 2.5초 후 로그인 화면으로 이동
     Timer(const Duration(milliseconds: 2500), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainWrapper()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
     });
